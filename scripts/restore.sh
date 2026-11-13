@@ -6,7 +6,7 @@ ROOT_DIR="$(dirname "${SCRIPT_DIR}")"
 
 BACKUP_DIR="${BACKUP_DIR:-${ROOT_DIR}/backups}"
 CONTAINER_NAME="${DB_CONTAINER:-hotel_db}"
-TARGET_DB="${RESTORE_DB:-hotel_booking_db_restored}"
+TARGET_DB="${2:-${RESTORE_DB:-hotel_booking_db_restored}}"
 DB_USER="${POSTGRES_USER:-postgres}"
 DB_PASSWORD="${POSTGRES_PASSWORD:-postgrespassword}"
 DB_HOST="${POSTGRES_HOST:-localhost}"

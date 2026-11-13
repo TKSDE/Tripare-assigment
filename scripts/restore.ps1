@@ -1,5 +1,6 @@
 param (
-    [string]$BackupFilePath
+    [string]$BackupFilePath,
+    [string]$TargetDatabase
 )
 
 $ErrorActionPreference = "Stop"
@@ -9,7 +10,7 @@ $rootDir = Split-Path -Parent $scriptDir
 
 $backupDir = if ($env:BACKUP_DIR) { $env:BACKUP_DIR } else { Join-Path $rootDir "backups" }
 $containerName = if ($env:DB_CONTAINER) { $env:DB_CONTAINER } else { "hotel_db" }
-$targetDb = if ($env:RESTORE_DB) { $env:RESTORE_DB } else { "hotel_booking_db_restored" }
+$targetDb = if ($TargetDatabase) { $TargetDatabase } elseif ($env:RESTORE_DB) { $env:RESTORE_DB } else { "hotel_booking_db_restored" }
 $dbUser = if ($env:POSTGRES_USER) { $env:POSTGRES_USER } else { "postgres" }
 $dbPassword = if ($env:POSTGRES_PASSWORD) { $env:POSTGRES_PASSWORD } else { "postgrespassword" }
 
