@@ -1,0 +1,101 @@
+name: "Terraform CI"
+
+on:
+  pull_request:
+    branches:
+      - main
+  push:
+    branches:
+      - main
+  workflow_dispatch:
+
+permissions:
+  contents: read
+  pull-requests: write
+
+jobs:
+  terraform-format:
+    name: "Terraform Format"
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout Code
+        uses: actions/checkout@v4
+
+      - name: Setup Terraform
+        uses: hashicorp/setup-terraform@v3
+        with:
+          terraform_version: "1.9.8"
+
+      - name: Terraform Format Check
+        run: terraform fmt -check -recursive infra/
+
+  terraform-pipeline:
+    name: "Terraform Validate & Plan"
+    runs-on: ubuntu-latest
+    needs: [terraform-format]
+    strategy:
+      matrix:
+        environment: [dev, prod]
+    steps:
+      - name: Checkout Code
+        uses: actions/checkout@v4
+
+      - name: Setup Terraform
+        uses: hashicorp/setup-terraform@v3
+        with:
+          terraform_version: "1.9.8"
+
+      - name: Terraform Init (${{ matrix.environment }})
+        run: |
+          terraform -chdir=infra/envs/${{ matrix.environment }} init
+
+      - name: Terraform Validate (${{ matrix.environment }})
+        run: |
+          terraform -chdir=infra/envs/${{ matrix.environment }} validate -no-color
+
+      - name: Terraform Plan (${{ matrix.environment }})
+        id: plan
+        run: |
+          terraform -chdir=infra/envs/${{ matrix.environment }} plan -refresh=false -no-color -out=tfplan_${{ matrix.environment }} > plan_output_${{ matrix.environment }}.txt
+          cat plan_output_${{ matrix.environment }}.txt
+
+      - name: Publish Step Summary
+        run: |
+          echo "### Terraform Plan: \`${{ matrix.environment }}\`" >> $GITHUB_STEP_SUMMARY
+          echo '```terraform' >> $GITHUB_STEP_SUMMARY
+          tail -n 100 plan_output_${{ matrix.environment }}.txt >> $GITHUB_STEP_SUMMARY
+          echo '```' >> $GITHUB_STEP_SUMMARY
+
+      - name: Upload Plan Artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: terraform-plan-${{ matrix.environment }}
+          path: |
+            infra/envs/${{ matrix.environment }}/tfplan_${{ matrix.environment }}
+            plan_output_${{ matrix.environment }}.txt
+          retention-days: 7
+
+      - name: Comment Plan on Pull Request
+        if: github.event_name == 'pull_request'
+        uses: actions/github-script@v7
+        with:
+          script: |
+            const fs = require('fs');
+            const envName = '${{ matrix.environment }}';
+            const planText = fs.readFileSync(`plan_output_${envName}.txt`, 'utf8');
+            const trimmedPlan = planText.length > 60000 ? planText.slice(-60000) : planText;
+            
+            const body = `#### Environment: \`${envName}\` Plan Status: 
+            <details><summary>Click to view execution plan</summary>
+            
+            \`\`\`terraform
+            ${trimmedPlan}
+            \`\`\`
+            </details>`;
+            
+            github.rest.issues.createComment({
+              issue_number: context.issue.number,
+              owner: context.repo.owner,
+              repo: context.repo.repo,
+              body: body
+            });
